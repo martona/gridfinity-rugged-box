@@ -21,7 +21,9 @@ l_grid = 42;
 // screw hole radius
 r_hole1 = 1.5;
 // magnet hole radius
-r_hole2 = 3.25;
+r_hole2 = 3.15;
+echo ("STANDARD CHANGED: r_hole2: 3.25 -> ", r_hole2);
+
 // center-to-center distance between holes
 d_hole = 26;
 // distance of hole from side of bin

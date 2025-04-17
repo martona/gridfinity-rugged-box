@@ -120,7 +120,8 @@ module rbox(
     handle=false,
     label=false,
     label_text="",
-    label_text_size=10
+    label_text_size=10,
+    side_labels=false
 ) {
     // Set base dimensions
     $b_inner_width = width;
@@ -139,6 +140,7 @@ module rbox(
     $b_label = label;
     $b_label_text = label_text;
     $b_label_text_size = label_text_size;
+    $b_side_labels = side_labels;
     // Set defaults
     $b_preview_assembled = false;
     $b_preview_box_open = false;
@@ -614,6 +616,10 @@ function _label_enabled() = (
     )
 );
 
+function _label_side_room() = (
+    rb_side_rib_positions()[len(rb_side_rib_positions())-1] - rb_side_rib_positions()[0]
+);
+
 function _label_rib_separation() = (
     $b_inner_width
     - $b_corner_radius * 2
@@ -625,7 +631,17 @@ function _label_rib_separation() = (
 );
 
 function _label_space() = [
-    _label_rib_separation() - $b_size_tolerance * 4 - $b_rib_width,
+    $b_side_labels    ? 
+                        min(
+                            _label_side_room() - $b_size_tolerance * 4, 
+                            _label_rib_separation() - $b_size_tolerance * 4 - $b_rib_width
+                        ) 
+                    : 
+                        min(
+                            _label_rib_separation() - $b_size_tolerance * 4 - $b_rib_width, 
+                            160
+                        )
+                    ,
     min(
         label_max_height + label_holder_inset * 2,
         $b_inner_height - $b_outer_chamfer_vertical
@@ -774,6 +790,16 @@ module _box_body() {
         _box_stacking_latch_ribs();
         _box_top_grip();
         _box_label_holder();
+        if ($b_side_labels) {
+            translate([-$b_inner_width/2, 0])
+                rotate([0,0,-90])
+                    translate([0,$b_inner_length/2,0])
+                        _box_label_holder("side");
+            translate([$b_inner_width/2, 0])
+                rotate([0,0,90])
+                    translate([0,$b_inner_length/2,0])
+                        _box_label_holder("side");
+        }
     }
 }
 
@@ -1272,7 +1298,7 @@ module _box_stacking_latch_rib() {
                 ? [
                     base_sep
                     + stacking_latch_screw_separation
-                    + stacking_latch_catch_offset
+                    + (stacking_latch_catch_offset + $b_size_tolerance)
                 ]
                 : []
 
@@ -1487,8 +1513,12 @@ module _box_top_grip() {
 
 // Label
 
-module _box_label_holder_base() {
-    rib_separation = _label_rib_separation();
+module _box_label_holder_base(position="front") {
+    rib_separation = ( 
+        (position == "front") 
+            ? _label_rib_separation()
+            : _label_side_room()
+    );
     threshold = 50;
     label_height = (
         abs($b_outer_height - threshold) < $b_lip_height
@@ -1526,14 +1556,66 @@ module _box_label_placement(label=false) {
     children();
 }
 
-module _box_label_holder() {
+module _box_label_holder(position="front") {
+    // there's a bug in OpenSCAD that causes the _label_holder to not render
+    // with the original code when the width exceeds ~200mm.
+    // my alternate code on the other hand only seems to work over 200mm.
+    // i don't feel like digging too deep into this since i'm hard-capping
+    // the label width at 160mm anyway - the alternate code can (should) be removed.
+    if (_label_holder_size()[0] < 200) {
+        _box_label_holder_old(position);
+    } else {
+        _box_label_holder_alternate(position);
+    }
+}
+
+module _box_label_holder_old(position) {
+    label_holder_size = _label_holder_size();
+    label_size = _label_size();
+    if (_label_enabled() && $b_part == "bottom") {
+        _box_label_holder_base(position);
+        _box_label_placement(label=false)
+        intersection() {
+            render()
+            difference() {
+                linear_extrude(height=label_holder_thickness)
+                _round_shape(label_holder_lip)
+                difference() {
+                    square(label_holder_size, center=true);
+                    translate([0, (label_holder_size[1] - (label_size[1] - label_holder_lip)) / 2])
+                    translate([0, label_holder_lip])
+                    square([
+                        label_size[0] - label_holder_lip * 2,
+                        label_size[1] - label_holder_lip + label_holder_lip * 2
+                    ], center=true);
+                }
+                linear_extrude(height=label_thickness + label_fit_thickness)
+                translate([0, (label_holder_size[1] - label_size[1]) / 2])
+                _round_shape(label_holder_lip)
+                union() {
+                    square(_vec_add(label_size, 0.1), center=true);
+                    translate([0, label_size[1]])
+                    square([label_size[0] * 2, label_size[1]], center=true);
+                }
+            }
+            _hull_pair(label_holder_thickness) {
+                _round_shape(label_holder_lip)
+                square(label_holder_size, center=true);
+                translate([0, label_holder_thickness / 2])
+                _round_shape(label_holder_lip)
+                square(_vec_add(label_holder_size, -label_holder_thickness), center=true);
+            }
+        }
+    }
+}
+
+module _box_label_holder_alternate(position) {
     label_holder_size = _label_holder_size();
     label_size = _label_size();
     if (_label_enabled() && $b_part == "bottom") {
         _box_label_holder_base();
         _box_label_placement(label=false)
-        intersection() {
-            render()
+        union() {
             difference() {
                 linear_extrude(height=label_holder_thickness)
                 _round_shape(label_holder_lip)
@@ -2039,7 +2121,7 @@ module _latch(placement="default") {
 module _stacking_latch_shape() {
     catch_heights = [
         stacking_latch_screw_separation,
-        stacking_latch_screw_separation + stacking_latch_catch_offset
+        stacking_latch_screw_separation + (stacking_latch_catch_offset - $b_size_tolerance)
     ];
 
     bw = latch_base_size - screw_hole_diameter / 2;

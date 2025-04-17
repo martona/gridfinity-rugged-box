@@ -10,6 +10,9 @@ include <gridfinity-rebuilt-openscad/standard.scad>;
 use <gridfinity-rebuilt-openscad/gridfinity-rebuilt-baseplate.scad>;
 use <gridfinity-rebuilt-openscad/gridfinity-rebuilt-utility.scad>;
 
+// ADJUST r_hole2 in <standard> for tighter magnet holes 
+echo("USING MAGNET HOLE RADIUS (r_hole2):", r_hole2);
+
 /* [Rendering] */
 // Part selection. Note: Assembled box previews show latches without chamfers for performance reasons.
 Part = "assembled_open"; // ["bottom": Bottom, "top": Top, "latch": Latch, "stacking_latch": Stacking latch, "handle": Handle, "label": Label, "side-by-side": Top and Bottom side-by-side, "assembled_open": Assembled open, "assembled_closed": Assembled closed, "bottom_modifier": Bottom print modifier volume for attachment ribs, "top_modifier": Top print modifier volume for attachment ribs, "top_grid_modifier": Top print modifier volume for Gridfinity lid]
@@ -22,7 +25,7 @@ Width = 4; // [1:1:10]
 Length = 2; // [1:1:10]
 
 // Interior bottom height in 7mm Gridfinity units
-Bottom_Height = 7; // [1:1:30]
+Bottom_Height = 6; // [1:1:80]
 
 // Interior top height in 7mm Gridfinity units
 Top_Height = 2; // [1:1:10]
@@ -61,6 +64,9 @@ Handle = true;
 // Optional label for sufficiently wide boxes
 Label = true;
 
+// Optional labels for box's left and right sides
+Side_Labels = false;
+
 // Custom text for optional label
 Label_Text = "Label";
 
@@ -81,7 +87,7 @@ Rib_Width = 6; // [1:0.1:20]
 Latch_Width = 28; // [5:1:50]
 
 // Distance in millimeters between the latch hinge and catch screws which determines the latch vertical size
-Latch_Screw_Separation = 16; // [5:1:40]
+Latch_Screw_Separation = 16; // [5:0.1:40]
 
 // Width in millimeters subtracted from latches for fit
 Size_Tolerance = 0.20; // [0:0.01:1]
@@ -343,7 +349,8 @@ module main() {
         handle=Handle,
         label=Label,
         label_text=Label_Text,
-        label_text_size=Label_Text_Size
+        label_text_size=Label_Text_Size,
+        side_labels=Side_Labels
     )
     rbox_size_adjustments(
         wall_thickness=Wall_Thickness,
