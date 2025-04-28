@@ -67,6 +67,9 @@ Label = true;
 // Optional labels for box's left and right sides
 Side_Labels = false;
 
+// Side label size matches front
+Uniform_Sized_Labels = true;
+
 // Custom text for optional label
 Label_Text = "Label";
 
@@ -350,7 +353,8 @@ module main() {
         label=Label,
         label_text=Label_Text,
         label_text_size=Label_Text_Size,
-        side_labels=Side_Labels
+        side_labels=Side_Labels,
+        uniform_sized_labels=Uniform_Sized_Labels
     )
     rbox_size_adjustments(
         wall_thickness=Wall_Thickness,

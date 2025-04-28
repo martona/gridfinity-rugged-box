@@ -60,6 +60,7 @@ label_holder_inset = 5;
 label_holder_lip = 2;
 label_holder_thickness = 2 + label_thickness + label_fit_thickness;
 label_max_height = 30;
+label_max_width = 280;
 
 // Public modules
 
@@ -121,7 +122,8 @@ module rbox(
     label=false,
     label_text="",
     label_text_size=10,
-    side_labels=false
+    side_labels=false,
+    uniform_sized_labels=true
 ) {
     // Set base dimensions
     $b_inner_width = width;
@@ -141,6 +143,7 @@ module rbox(
     $b_label_text = label_text;
     $b_label_text_size = label_text_size;
     $b_side_labels = side_labels;
+    $b_uniform_sized_labels = uniform_sized_labels;
     // Set defaults
     $b_preview_assembled = false;
     $b_preview_box_open = false;
@@ -239,9 +242,9 @@ module rbox_stacking_latch(placement="print") { _stacking_latch(placement); }
 
 module rbox_handle(placement="print") { _handle(placement); }
 
-module rbox_label(placement="print") {
+module rbox_label(placement="print", position="front") {
     rbox_for_bottom() {
-        _box_label(placement);
+        _box_label(placement, position);
     }
 }
 
@@ -403,7 +406,11 @@ module rbox_part(part) {
     } else if (part == "handle") {
         rbox_handle(placement="print");
     } else if (part == "label") {
-        rbox_label();
+        rbox_label(placement="print", position="front");
+        if ($b_side_labels)
+            for (s = [-1,1])
+                translate([0, s * (label_max_height + 2), 0])
+                    rbox_label(placement="print", position="side");
     }
 }
 
@@ -606,8 +613,8 @@ function _handle_enabled() = (
     )
 );
 
-function _label_enabled() = (
-    let (label_holder_size = _label_size())
+function _label_enabled(position="front") = (
+    let (label_holder_size = _label_size(position))
     (
         $b_label
         && _compute_latch_count() == 2
@@ -630,28 +637,28 @@ function _label_rib_separation() = (
     ): 0)
 );
 
-function _label_space() = [
-    $b_side_labels    ? 
-                        min(
-                            _label_side_room() - $b_size_tolerance * 4, 
-                            _label_rib_separation() - $b_size_tolerance * 4 - $b_rib_width
-                        ) 
-                    : 
-                        min(
-                            _label_rib_separation() - $b_size_tolerance * 4 - $b_rib_width, 
-                            160
-                        )
-                    ,
-    min(
-        label_max_height + label_holder_inset * 2,
-        $b_inner_height - $b_outer_chamfer_vertical
-    )
+function _label_space(position = "front") = [
+    let (label_space_front = min(_label_rib_separation() - $b_size_tolerance * 4 - $b_rib_width, label_max_width))
+    let (label_space_side  = min(_label_side_room() - $b_size_tolerance * 4, label_max_width))
+    $b_uniform_sized_labels ? 
+        min(label_space_front, label_space_side) 
+            : 
+        (position == "front" ? 
+            label_space_front 
+                : 
+            label_space_side
+        )
+    ,
+        min(
+            label_max_height + label_holder_inset * 2,                                                                                                                                                                                              
+            $b_inner_height - $b_outer_chamfer_vertical                                                                                                                                                                                             
+        )
 ];
 
-function _label_holder_size() = (_vec_add(_label_space(), -label_holder_inset));
+function _label_holder_size(position = "front") = (_vec_add(_label_space(position), -label_holder_inset));
 
-function _label_size() = (
-    let (label_holder_size = _label_holder_size())
+function _label_size(position = "front") = (
+    let (label_holder_size = _label_holder_size(position))
     [
         label_holder_size[0] - label_holder_inset * 2,
         label_holder_size[1] - label_holder_inset
@@ -1529,10 +1536,10 @@ module _box_label_holder_base(position="front") {
     }
 }
 
-module _box_label_placement(label=false) {
-    space = _label_space();
-    label_holder_size = _label_holder_size();
-    label_size = _label_size();
+module _box_label_placement(position="front", label=false) {
+    space = _label_space(position);
+    label_holder_size = _label_holder_size(position);
+    label_size = _label_size(position);
     slop = 0.001;
     rotate([90, 0, 0])
     translate([
@@ -1561,11 +1568,11 @@ module _box_label_holder() {
 }
 
 module _box_label_holder_impl(position) {
-    label_holder_size = _label_holder_size();
-    label_size = _label_size();
-    if (_label_enabled() && $b_part == "bottom") {
+    label_holder_size = _label_holder_size(position);
+    label_size = _label_size(position);
+    if (_label_enabled(position) && $b_part == "bottom") {
         _box_label_holder_base(position);
-        _box_label_placement(label=false)
+        _box_label_placement(position, label=false)
         intersection() {
             render()
             difference() {
@@ -1600,8 +1607,8 @@ module _box_label_holder_impl(position) {
     }
 }
 
-module _box_label_base() {
-    label_size = _label_size();
+module _box_label_base(position="front") {
+    label_size = _label_size(position);
     label_chamfer = label_thickness * 0.25;
 
     module _base_shape() {
@@ -1632,22 +1639,37 @@ module _box_label_text() {
     );
 }
 
-module _box_label_assembly() {
-        _box_label_base();
-        _box_label_text();
+module _box_label(placement="default", position="front") {
+    if (placement == "print") {
+        _box_label_impl(placement=placement, position=position);
+    } else {
+        union() {
+            _box_label_impl(placement=placement, position="front");
+            if ($b_side_labels) {
+                translate([-$b_inner_width/2, 0])
+                    rotate([0,0,-90])
+                        translate([0,$b_inner_length/2,0])
+                            _box_label_impl(placement=placement, position="side");
+                translate([$b_inner_width/2, 0])
+                    rotate([0,0,90])
+                        translate([0,$b_inner_length/2,0])
+                            _box_label_impl(placement=placement, position="side");
+            }
+        }
+    }
 }
 
-module _box_label(placement="default") {
-    module _box_label_assembly() {
-        _box_label_base();
+module _box_label_impl(placement="default", position="front") {
+    module _box_label_assembly(position) {
+        _box_label_base(position);
         _box_label_text();
     }
 
     if (placement == "print") {
-        _box_label_assembly();
+        _box_label_assembly(position);
     } else {
-        _box_label_placement(label=true)
-        _box_label_assembly();
+        _box_label_placement(position=position, label=true)
+        _box_label_assembly(position);
     }
 }
 
