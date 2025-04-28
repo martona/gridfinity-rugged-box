@@ -790,16 +790,6 @@ module _box_body() {
         _box_stacking_latch_ribs();
         _box_top_grip();
         _box_label_holder();
-        if ($b_side_labels) {
-            translate([-$b_inner_width/2, 0])
-                rotate([0,0,-90])
-                    translate([0,$b_inner_length/2,0])
-                        _box_label_holder("side");
-            translate([$b_inner_width/2, 0])
-                rotate([0,0,90])
-                    translate([0,$b_inner_length/2,0])
-                        _box_label_holder("side");
-        }
     }
 }
 
@@ -1556,20 +1546,21 @@ module _box_label_placement(label=false) {
     children();
 }
 
-module _box_label_holder(position="front") {
-    // there's a bug in OpenSCAD that causes the _label_holder to not render
-    // with the original code when the width exceeds ~200mm.
-    // my alternate code on the other hand only seems to work over 200mm.
-    // i don't feel like digging too deep into this since i'm hard-capping
-    // the label width at 160mm anyway - the alternate code can (should) be removed.
-    if (_label_holder_size()[0] < 200) {
-        _box_label_holder_old(position);
-    } else {
-        _box_label_holder_alternate(position);
+module _box_label_holder() {
+    _box_label_holder_impl("front");
+    if ($b_side_labels) {
+        translate([-$b_inner_width/2, 0])
+            rotate([0,0,-90])
+                translate([0,$b_inner_length/2,0])
+                    _box_label_holder_impl("side");
+        translate([$b_inner_width/2, 0])
+            rotate([0,0,90])
+                translate([0,$b_inner_length/2,0])
+                    _box_label_holder_impl("side");
     }
 }
 
-module _box_label_holder_old(position) {
+module _box_label_holder_impl(position) {
     label_holder_size = _label_holder_size();
     label_size = _label_size();
     if (_label_enabled() && $b_part == "bottom") {
@@ -1577,45 +1568,6 @@ module _box_label_holder_old(position) {
         _box_label_placement(label=false)
         intersection() {
             render()
-            difference() {
-                linear_extrude(height=label_holder_thickness)
-                _round_shape(label_holder_lip)
-                difference() {
-                    square(label_holder_size, center=true);
-                    translate([0, (label_holder_size[1] - (label_size[1] - label_holder_lip)) / 2])
-                    translate([0, label_holder_lip])
-                    square([
-                        label_size[0] - label_holder_lip * 2,
-                        label_size[1] - label_holder_lip + label_holder_lip * 2
-                    ], center=true);
-                }
-                linear_extrude(height=label_thickness + label_fit_thickness)
-                translate([0, (label_holder_size[1] - label_size[1]) / 2])
-                _round_shape(label_holder_lip)
-                union() {
-                    square(_vec_add(label_size, 0.1), center=true);
-                    translate([0, label_size[1]])
-                    square([label_size[0] * 2, label_size[1]], center=true);
-                }
-            }
-            _hull_pair(label_holder_thickness) {
-                _round_shape(label_holder_lip)
-                square(label_holder_size, center=true);
-                translate([0, label_holder_thickness / 2])
-                _round_shape(label_holder_lip)
-                square(_vec_add(label_holder_size, -label_holder_thickness), center=true);
-            }
-        }
-    }
-}
-
-module _box_label_holder_alternate(position) {
-    label_holder_size = _label_holder_size();
-    label_size = _label_size();
-    if (_label_enabled() && $b_part == "bottom") {
-        _box_label_holder_base();
-        _box_label_placement(label=false)
-        union() {
             difference() {
                 linear_extrude(height=label_holder_thickness)
                 _round_shape(label_holder_lip)
